@@ -35,16 +35,19 @@ impl Expression {
         fn E(tokens: &mut PeekableTokens) -> Expression {
             let mut expr = T(tokens);
 
-            while let Some(TokenKind::Plus | TokenKind::Minus) =
-                tokens.peek().map(|t| t.kind.clone())
-            {
-                let op = tokens.next().unwrap().kind;
+            loop {
+                let operation = tokens.peek().and_then(|t| match t.kind {
+                    TokenKind::Plus => Some(BinaryOperation::Plus),
+                    TokenKind::Minus => Some(BinaryOperation::Minus),
+                    _ => None,
+                });
+                let Some(operation) = operation else { break };
+
+                // Consume peeked token
+                tokens.next();
+
                 expr = Expression::BinaryOperation {
-                    operation: match op {
-                        TokenKind::Plus => BinaryOperation::Plus,
-                        TokenKind::Minus => BinaryOperation::Minus,
-                        _ => unreachable!(),
-                    },
+                    operation,
                     lhs: Box::new(expr),
                     rhs: Box::new(T(tokens)),
                 };
@@ -56,16 +59,19 @@ impl Expression {
         fn T(tokens: &mut PeekableTokens) -> Expression {
             let mut expr = F(tokens);
 
-            while let Some(TokenKind::Asterix | TokenKind::Slash) =
-                tokens.peek().map(|t| t.kind.clone())
-            {
-                let op = tokens.next().unwrap().kind;
+            loop {
+                let operation = tokens.peek().and_then(|t| match t.kind {
+                    TokenKind::Asterix => Some(BinaryOperation::Mult),
+                    TokenKind::Slash => Some(BinaryOperation::Div),
+                    _ => None,
+                });
+                let Some(operation) = operation else { break };
+
+                // Consume peeked token
+                tokens.next();
+
                 expr = Expression::BinaryOperation {
-                    operation: match op {
-                        TokenKind::Asterix => BinaryOperation::Mult,
-                        TokenKind::Slash => BinaryOperation::Div,
-                        _ => unreachable!(),
-                    },
+                    operation,
                     lhs: Box::new(expr),
                     rhs: Box::new(F(tokens)),
                 };
@@ -77,7 +83,11 @@ impl Expression {
         fn F(tokens: &mut PeekableTokens) -> Expression {
             let p = P(tokens);
 
-            if let Some(TokenKind::Hat) = tokens.peek().map(|t| t.kind.clone()) {
+            if tokens
+                .peek()
+                .map(|t| matches!(t.kind, TokenKind::Hat))
+                .unwrap_or_default()
+            {
                 // Consume hat
                 tokens.next();
 
