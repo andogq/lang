@@ -1,6 +1,6 @@
 #[derive(Debug)]
 pub struct Token {
-    kind: TokenKind,
+    pub kind: TokenKind,
 }
 impl Token {
     pub fn new(kind: TokenKind) -> Self {
@@ -8,14 +8,20 @@ impl Token {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum LiteralKind {
     String,
     Integer,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub enum Keyword {
+    Let,
+}
+
+#[derive(Debug, Clone)]
 pub enum TokenKind {
+    Keyword(Keyword),
     Literal { kind: LiteralKind, chars: Vec<char> },
     Identifier(String),
     Whitespace,
@@ -24,6 +30,13 @@ pub enum TokenKind {
 
     Equals,
     Plus,
+    Minus,
+    Asterix,
+    Slash,
+    Hat,
+
+    LSmooth,
+    RSmooth,
 
     Unknown,
 }

@@ -1,6 +1,6 @@
 use crate::{
     lexer::cursor::Cursor,
-    token::{LiteralKind, Token, TokenKind},
+    token::{Keyword, LiteralKind, Token, TokenKind},
 };
 
 mod cursor;
@@ -35,7 +35,11 @@ pub fn tokenize(source: &str) -> impl Iterator<Item = Token> + '_ {
                     chars: cursor.retake_while(|c| c.is_ascii_digit()),
                 },
                 c if is_ident_char(c) => {
-                    TokenKind::Identifier(String::from_iter(cursor.retake_while(is_ident_char)))
+                    let ident_str = String::from_iter(cursor.retake_while(is_ident_char));
+                    match ident_str.as_str() {
+                        "let" => TokenKind::Keyword(Keyword::Let),
+                        _ => TokenKind::Identifier(ident_str),
+                    }
                 }
                 '"' => {
                     let chars = cursor.take_while_config(false, false, |c, escaped| {
