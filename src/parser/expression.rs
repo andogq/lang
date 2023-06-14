@@ -2,121 +2,169 @@ use crate::token::TokenKind;
 
 use super::PeekableTokens;
 
-#[derive(Debug)]
-pub enum BinaryOperation {
-    Plus,
-    Minus,
+/// Each of the binary operations that can take place within an expression.
+#[derive(Debug, PartialEq, Eq)]
+pub enum BinaryOperationKind {
+    /// Addition
+    Add,
+    /// Subtraction
+    Sub,
+    /// Multiplication
     Mult,
+    /// Division
     Div,
+    /// Exponent
     Exp,
 }
 
-#[derive(Debug)]
+/// Each of the unary operations that can take place within an expression.
+#[derive(Debug, PartialEq, Eq)]
+pub enum UnaryOperationKind {
+    /// Negation (eg `-8`)
+    Negative,
+}
+
+/// Each of the possible expression types.
+#[derive(Debug, PartialEq, Eq)]
 pub enum Expression {
+    /// A single number. Eg `8`.
     Number(usize),
+    /// A variable. Eg `a`.
     Ident(String),
+    /// A binary operation. Eg `a + 8`.
     BinaryOperation {
-        operation: BinaryOperation,
+        operation: BinaryOperationKind,
         lhs: Box<Expression>,
+        rhs: Box<Expression>,
+    },
+    /// A unary operation. Eg `-8`.
+    UnaryOperation {
+        operation: UnaryOperationKind,
         rhs: Box<Expression>,
     },
 }
 
+/// The following grammar is used to parse expressions. Expressions can be terminated by a number,
+/// function call, or another variable.
+///
+/// ```txt
+/// S -> E end
+/// E -> T {("+" | "-") T}
+/// T -> F {("*" | "/") F}
+/// F -> P ["^" F]
+/// P -> v | "(" E ")" | "-" T
+/// v -> [0-9]+ | function | variable
+/// ```
 impl Expression {
-    /*
-    S -> E end
-    E -> T {("+" | "-") T}
-    T -> F {("*" | "/") F}
-    F -> P ["^" F]
-    P -> v | "(" E ")" | "-" T
-    v -> [0-9]+ | function | variable
-     */
-    pub fn parse(tokens: &mut PeekableTokens) -> Expression {
-        fn E(tokens: &mut PeekableTokens) -> Expression {
-            let mut expr = T(tokens);
+    /// Parse the `E` term from the grammar
+    /// ```txt
+    /// E -> T {("+" | "-") T}
+    /// ```
+    pub fn parse_expression(tokens: &mut PeekableTokens) -> Expression {
+        let mut expr = Self::parse_term(tokens);
 
-            loop {
-                let operation = tokens.peek().and_then(|t| match t.kind {
-                    TokenKind::Plus => Some(BinaryOperation::Plus),
-                    TokenKind::Minus => Some(BinaryOperation::Minus),
-                    _ => None,
-                });
-                let Some(operation) = operation else { break };
+        loop {
+            let operation = tokens.peek().and_then(|t| match t.kind {
+                TokenKind::Plus => Some(BinaryOperationKind::Add),
+                TokenKind::Minus => Some(BinaryOperationKind::Sub),
+                _ => None,
+            });
+            let Some(operation) = operation else { break };
 
-                // Consume peeked token
-                tokens.next();
+            // Consume peeked token
+            tokens.next();
 
-                expr = Expression::BinaryOperation {
-                    operation,
-                    lhs: Box::new(expr),
-                    rhs: Box::new(T(tokens)),
-                };
-            }
-
-            expr
+            expr = Expression::BinaryOperation {
+                operation,
+                lhs: Box::new(expr),
+                rhs: Box::new(Self::parse_term(tokens)),
+            };
         }
 
-        fn T(tokens: &mut PeekableTokens) -> Expression {
-            let mut expr = F(tokens);
+        expr
+    }
 
-            loop {
-                let operation = tokens.peek().and_then(|t| match t.kind {
-                    TokenKind::Asterix => Some(BinaryOperation::Mult),
-                    TokenKind::Slash => Some(BinaryOperation::Div),
-                    _ => None,
-                });
-                let Some(operation) = operation else { break };
+    /// Parse the `T` term from the grammar
+    /// ```txt
+    /// T -> F {("*" | "/") F}
+    /// ```
+    pub fn parse_term(tokens: &mut PeekableTokens) -> Expression {
+        let mut expr = Self::parse_factor(tokens);
 
-                // Consume peeked token
-                tokens.next();
+        loop {
+            let operation = tokens.peek().and_then(|t| match t.kind {
+                TokenKind::Asterix => Some(BinaryOperationKind::Mult),
+                TokenKind::Slash => Some(BinaryOperationKind::Div),
+                _ => None,
+            });
+            let Some(operation) = operation else { break };
 
-                expr = Expression::BinaryOperation {
-                    operation,
-                    lhs: Box::new(expr),
-                    rhs: Box::new(F(tokens)),
-                };
-            }
+            // Consume peeked token
+            tokens.next();
 
-            expr
+            expr = Expression::BinaryOperation {
+                operation,
+                lhs: Box::new(expr),
+                rhs: Box::new(Self::parse_factor(tokens)),
+            };
         }
 
-        fn F(tokens: &mut PeekableTokens) -> Expression {
-            let p = P(tokens);
+        expr
+    }
 
-            if tokens
-                .peek()
-                .map(|t| matches!(t.kind, TokenKind::Hat))
-                .unwrap_or_default()
-            {
-                // Consume hat
-                tokens.next();
+    /// Parse the `F` term from the grammar
+    /// ```txt
+    /// F -> P ["^" F]
+    /// ```
+    pub fn parse_factor(tokens: &mut PeekableTokens) -> Expression {
+        let p = Self::parse_primary(tokens);
 
-                Expression::BinaryOperation {
-                    operation: BinaryOperation::Exp,
-                    lhs: Box::new(p),
-                    rhs: Box::new(F(tokens)),
-                }
-            } else {
-                p
+        if tokens
+            .peek()
+            .map(|t| matches!(t.kind, TokenKind::Hat))
+            .unwrap_or_default()
+        {
+            // Consume hat
+            tokens.next();
+
+            Expression::BinaryOperation {
+                operation: BinaryOperationKind::Exp,
+                lhs: Box::new(p),
+                rhs: Box::new(Self::parse_factor(tokens)),
             }
+        } else {
+            p
         }
+    }
 
-        fn P(tokens: &mut PeekableTokens) -> Expression {
-            match tokens.next().expect("token to follow").kind {
-                TokenKind::Literal { .. } => Expression::Number(0), // TODO: parse number somewhere
-                TokenKind::Identifier(ident) => Expression::Ident(ident),
-                TokenKind::LSmooth => {
-                    let expression = E(tokens);
-                    let Some(TokenKind::RSmooth) = tokens.next().map(|t| t.kind) else {
+    /// Parse the `P` term from the grammar
+    /// ```txt
+    /// P -> v | "(" E ")" | "-" T
+    /// ```
+    pub fn parse_primary(tokens: &mut PeekableTokens) -> Expression {
+        match tokens.next().expect("token to follow").kind {
+            TokenKind::Literal { .. } => Expression::Number(0), // TODO: parse number somewhere
+            TokenKind::Identifier(ident) => Expression::Ident(ident),
+            TokenKind::LSmooth => {
+                let expression = Self::parse_expression(tokens);
+                let Some(TokenKind::RSmooth) = tokens.next().map(|t| t.kind) else {
                     panic!("expected RSmooth");
                 };
-                    expression
-                }
-                TokenKind::Minus => T(tokens),
-                _ => panic!("unexpected token"),
+                expression
             }
+            TokenKind::Minus => Expression::UnaryOperation {
+                operation: UnaryOperationKind::Negative,
+                rhs: Box::new(Self::parse_term(tokens)),
+            },
+            _ => panic!("unexpected token"),
         }
+    }
 
-        E(tokens)
+    /// Parses tokens into an expression (identical to [Self::parse_expression] call).
+    pub fn parse(tokens: &mut PeekableTokens) -> Expression {
+        Self::parse_expression(tokens)
+    }
+}
+
     }
 }
