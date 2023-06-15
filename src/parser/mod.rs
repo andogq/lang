@@ -4,14 +4,12 @@ use crate::{
 };
 
 use self::{
-    _let::Let,
     error::{ParserError, ParserResult},
-    expression::Expression,
+    parsers::{Expression, Let},
 };
 
-mod _let;
 pub mod error;
-mod expression;
+mod parsers;
 
 #[allow(unused)]
 #[derive(Debug)]

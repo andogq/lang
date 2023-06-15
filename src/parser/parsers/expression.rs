@@ -1,11 +1,7 @@
 use crate::{
+    parser::error::{ParserError, ParserResult},
     token::{LiteralKind, TokenKind},
-    token_stream::TokenIterator,
-};
-
-use super::{
-    error::{ParserError, ParserResult},
-    TokenStream,
+    token_stream::{TokenIterator, TokenStream},
 };
 
 /// Each of the binary operations that can take place within an expression.

@@ -1,9 +1,11 @@
 use crate::{token::TokenKind, token_stream::TokenIterator};
 
 use super::{
-    error::{ParserError, ParserResult},
-    expression::Expression,
-    TokenStream,
+    super::{
+        error::{ParserError, ParserResult},
+        TokenStream,
+    },
+    Expression,
 };
 
 #[allow(unused)]
