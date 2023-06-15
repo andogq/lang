@@ -9,7 +9,7 @@ use self::{
 };
 
 pub mod error;
-mod parsers;
+pub mod parsers;
 
 #[allow(unused)]
 #[derive(Debug)]

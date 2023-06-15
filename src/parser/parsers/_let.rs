@@ -11,8 +11,8 @@ use super::{
 #[allow(unused)]
 #[derive(Debug)]
 pub struct Let {
-    ident: String,
-    rhs: Expression,
+    pub(crate) ident: String,
+    pub(crate) rhs: Expression,
 }
 impl Let {
     pub fn parse<I>(tokens: &mut TokenStream<I>) -> ParserResult<Let>
