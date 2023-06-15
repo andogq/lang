@@ -20,11 +20,24 @@ impl PartialEq for Token {
 pub enum LiteralKind {
     String,
     Integer,
+    Boolean,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Keyword {
     Let,
+}
+impl TryFrom<&str> for Keyword {
+    type Error = ();
+
+    fn try_from(keyword: &str) -> Result<Self, Self::Error> {
+        use Keyword::*;
+
+        match keyword {
+            "let" => Ok(Let),
+            _ => Err(()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

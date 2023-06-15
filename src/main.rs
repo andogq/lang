@@ -24,6 +24,9 @@ let b = 5;
 
 // The result
 let c = a + b;
+
+let some_bool = true;
+let another_bool = false;
 "#;
 
     let tokens = Lexer::new(source).filter(|token| !matches!(token.kind, TokenKind::Whitespace));

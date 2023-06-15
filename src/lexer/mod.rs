@@ -62,9 +62,22 @@ impl Iterator for Lexer<'_> {
                     },
                     c if is_ident_char(c) => {
                         let ident_str = String::from_iter(self.cursor.retake_while(is_ident_char));
-                        match ident_str.as_str() {
+
+                        match (ident_str.as_str(), Keyword::try_from(ident_str.as_str())) {
+                            // Match for literals that appear as idents
+                            ("true", _) => TokenKind::Literal {
+                                kind: LiteralKind::Boolean,
+                                chars: ident_str.chars().collect(),
+                            },
+                            ("false", _) => TokenKind::Literal {
+                                kind: LiteralKind::Boolean,
+                                chars: ident_str.chars().collect(),
+                            },
+
                             // Match for keywords
-                            "let" => TokenKind::Keyword(Keyword::Let),
+                            (_, Ok(keyword)) => TokenKind::Keyword(keyword),
+
+                            // Fall back on idents
                             _ => TokenKind::Identifier(ident_str),
                         }
                     }

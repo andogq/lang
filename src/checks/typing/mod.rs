@@ -12,6 +12,7 @@ use crate::{
 pub enum Type {
     Integer,
     String,
+    Boolean,
 }
 
 /// All of the possible type errors that could arise through type checking
@@ -87,6 +88,7 @@ impl TypeEnvironment {
             Expression::Literal { kind, .. } => Ok(match kind {
                 LiteralKind::Integer => Type::Integer,
                 LiteralKind::String => Type::String,
+                LiteralKind::Boolean => Type::Boolean,
             }),
         }
     }
@@ -181,5 +183,23 @@ mod tests {
                 ("c".to_string(), Type::Integer)
             ])
         );
+    }
+
+    #[test]
+    fn boolean_and_integer() {
+        assert!(matches!(
+            TypeEnvironment::from_ast(vec![AstNode::Expression(Expression::BinaryOperation {
+                operation: BinaryOperationKind::Add,
+                lhs: Box::new(Expression::Literal {
+                    kind: LiteralKind::Boolean,
+                    chars: vec!['f', 'a', 'l', 's', 'e']
+                }),
+                rhs: Box::new(Expression::Literal {
+                    kind: LiteralKind::Integer,
+                    chars: vec!['1', '0']
+                })
+            })]),
+            Err(TypeError::MismatchedTypes { .. })
+        ))
     }
 }
