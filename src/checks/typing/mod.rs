@@ -61,7 +61,6 @@ impl TypeEnvironment {
     /// Determines the type of an expression
     fn get_expression_type(&self, expression: Expression) -> Result<Type, TypeError> {
         match expression {
-            Expression::Number(_) => Ok(Type::Integer),
             Expression::Ident(ident) => self
                 .ident_types
                 .get(&ident)
@@ -103,7 +102,10 @@ mod tests {
         assert_eq!(
             TypeEnvironment::from_ast(vec![AstNode::Let(Let {
                 ident: "a".to_string(),
-                rhs: Expression::Number(10)
+                rhs: Expression::Literal {
+                    kind: LiteralKind::Integer,
+                    chars: vec!['1', '0']
+                }
             })])
             .unwrap()
             .ident_types,
@@ -117,11 +119,17 @@ mod tests {
             TypeEnvironment::from_ast(vec![
                 AstNode::Let(Let {
                     ident: "a".to_string(),
-                    rhs: Expression::Number(10)
+                    rhs: Expression::Literal {
+                        kind: LiteralKind::Integer,
+                        chars: vec!['1', '0']
+                    }
                 }),
                 AstNode::Let(Let {
                     ident: "a".to_string(),
-                    rhs: Expression::Number(10)
+                    rhs: Expression::Literal {
+                        kind: LiteralKind::Integer,
+                        chars: vec!['1', '0']
+                    }
                 })
             ]),
             Err(TypeError::IdentRedeclared(_))
@@ -134,21 +142,33 @@ mod tests {
             TypeEnvironment::from_ast(vec![
                 AstNode::Let(Let {
                     ident: "a".to_string(),
-                    rhs: Expression::Number(10)
+                    rhs: Expression::Literal {
+                        kind: LiteralKind::Integer,
+                        chars: vec!['1', '0']
+                    }
                 }),
                 AstNode::Let(Let {
                     ident: "b".to_string(),
-                    rhs: Expression::Number(5)
+                    rhs: Expression::Literal {
+                        kind: LiteralKind::Integer,
+                        chars: vec!['1', '0']
+                    }
                 }),
                 AstNode::Let(Let {
                     ident: "c".to_string(),
                     rhs: Expression::BinaryOperation {
                         operation: BinaryOperationKind::Add,
-                        lhs: Box::new(Expression::Number(10)),
+                        lhs: Box::new(Expression::Literal {
+                            kind: LiteralKind::Integer,
+                            chars: vec!['1', '0']
+                        }),
                         rhs: Box::new(Expression::BinaryOperation {
                             operation: BinaryOperationKind::Mult,
                             lhs: Box::new(Expression::Ident("b".to_string())),
-                            rhs: Box::new(Expression::Number(193))
+                            rhs: Box::new(Expression::Literal {
+                                kind: LiteralKind::Integer,
+                                chars: vec!['1', '0']
+                            })
                         })
                     }
                 })

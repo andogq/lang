@@ -1,5 +1,3 @@
-use std::num::ParseIntError;
-
 use thiserror::Error;
 
 use crate::{lexer::cursor::Position, token::TokenKind};
@@ -20,11 +18,6 @@ pub enum ParserError {
     #[error("{position}: unexpected {token:?}")]
     UnexpectedToken {
         token: TokenKind,
-        position: Position,
-    },
-    #[error("{position}: {source}")]
-    ParseInt {
-        source: ParseIntError,
         position: Position,
     },
 }

@@ -29,8 +29,6 @@ pub enum UnaryOperationKind {
 /// Each of the possible expression types.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Expression {
-    /// A single number. Eg `8`.
-    Number(usize),
     /// A variable. Eg `a`.
     Ident(String),
     /// A binary operation. Eg `a + 8`.
@@ -151,27 +149,7 @@ impl Expression {
     {
         let token = tokens.next()?;
         match token.kind {
-            TokenKind::Literal {
-                kind: LiteralKind::Integer,
-                chars,
-            } => Ok(Expression::Number(
-                chars
-                    .iter()
-                    .cloned()
-                    .collect::<String>()
-                    .parse::<usize>()
-                    .map_err(|source| ParserError::ParseInt {
-                        source,
-                        position: token.position,
-                    })?,
-            )),
-            TokenKind::Literal {
-                kind: LiteralKind::String,
-                chars,
-            } => Ok(Expression::Literal {
-                kind: LiteralKind::String,
-                chars,
-            }),
+            TokenKind::Literal { kind, chars } => Ok(Expression::Literal { kind, chars }),
             TokenKind::Identifier(ident) => Ok(Expression::Ident(ident)),
             TokenKind::LSmooth => {
                 let expression = Self::parse_expression(tokens)?;
@@ -219,7 +197,10 @@ mod tests {
                 .into_iter()
             ))
             .unwrap(),
-            Expression::Number(90)
+            Expression::Literal {
+                kind: LiteralKind::Integer,
+                chars: vec!['9', '0']
+            }
         );
 
         assert_eq!(
@@ -234,7 +215,10 @@ mod tests {
                 .into_iter()
             ))
             .unwrap(),
-            Expression::Number(90)
+            Expression::Literal {
+                kind: LiteralKind::Integer,
+                chars: vec!['0', '0', '0', '0', '9', '0']
+            }
         );
     }
 
@@ -260,7 +244,10 @@ mod tests {
             .unwrap(),
             Expression::UnaryOperation {
                 operation: UnaryOperationKind::Negative,
-                rhs: Box::new(Expression::Number(90))
+                rhs: Box::new(Expression::Literal {
+                    kind: LiteralKind::Integer,
+                    chars: vec!['9', '0']
+                })
             }
         );
 
@@ -277,7 +264,7 @@ mod tests {
                     },
                     Token {
                         kind: TokenKind::Literal {
-                            kind: crate::token::LiteralKind::Integer,
+                            kind: LiteralKind::Integer,
                             chars: vec!['9', '0'],
                         },
                         position: Position::new(),
@@ -290,7 +277,10 @@ mod tests {
                 operation: UnaryOperationKind::Negative,
                 rhs: Box::new(Expression::UnaryOperation {
                     operation: UnaryOperationKind::Negative,
-                    rhs: Box::new(Expression::Number(90))
+                    rhs: Box::new(Expression::Literal {
+                        kind: LiteralKind::Integer,
+                        chars: vec!['9', '0'],
+                    })
                 })
             }
         );
