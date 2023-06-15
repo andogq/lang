@@ -44,6 +44,8 @@ pub enum Expression {
         operation: UnaryOperationKind,
         rhs: Box<Expression>,
     },
+    /// A literal.
+    Literal { kind: LiteralKind, chars: Vec<char> },
 }
 
 /// The following grammar is used to parse expressions. Expressions can be terminated by a number,
@@ -163,6 +165,13 @@ impl Expression {
                         position: token.position,
                     })?,
             )),
+            TokenKind::Literal {
+                kind: LiteralKind::String,
+                chars,
+            } => Ok(Expression::Literal {
+                kind: LiteralKind::String,
+                chars,
+            }),
             TokenKind::Identifier(ident) => Ok(Expression::Ident(ident)),
             TokenKind::LSmooth => {
                 let expression = Self::parse_expression(tokens)?;
