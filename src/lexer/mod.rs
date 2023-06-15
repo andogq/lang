@@ -73,3 +73,30 @@ pub fn tokenize(source: &str) -> impl Iterator<Item = Token> + '_ {
         })
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tokenize(source: &str) -> Vec<Token> {
+        super::tokenize(source).collect()
+    }
+
+    #[test]
+    fn integer_token() {
+        assert_eq!(
+            tokenize("-90"),
+            vec![
+                Token {
+                    kind: TokenKind::Minus,
+                },
+                Token {
+                    kind: TokenKind::Literal {
+                        kind: LiteralKind::Integer,
+                        chars: vec!['9', '0']
+                    }
+                }
+            ]
+        );
+    }
+}

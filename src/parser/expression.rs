@@ -1,4 +1,4 @@
-use crate::token::TokenKind;
+use crate::token::{LiteralKind, TokenKind};
 
 use super::PeekableTokens;
 
@@ -143,7 +143,17 @@ impl Expression {
     /// ```
     pub fn parse_primary(tokens: &mut PeekableTokens) -> Expression {
         match tokens.next().expect("token to follow").kind {
-            TokenKind::Literal { .. } => Expression::Number(0), // TODO: parse number somewhere
+            TokenKind::Literal {
+                kind: LiteralKind::Integer,
+                chars,
+            } => Expression::Number(
+                dbg!(chars)
+                    .iter()
+                    .cloned()
+                    .collect::<String>()
+                    .parse::<usize>()
+                    .expect("valid base 10 number"),
+            ),
             TokenKind::Identifier(ident) => Expression::Ident(ident),
             TokenKind::LSmooth => {
                 let expression = Self::parse_expression(tokens);
@@ -166,5 +176,92 @@ impl Expression {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::token::Token;
+
+    #[test]
+    fn number_expressions() {
+        assert_eq!(
+            Expression::parse(
+                &mut vec![Token {
+                    kind: TokenKind::Literal {
+                        kind: crate::token::LiteralKind::Integer,
+                        chars: vec!['9', '0'],
+                    },
+                }]
+                .into_iter()
+                .peekable(),
+            ),
+            Expression::Number(90)
+        );
+
+        assert_eq!(
+            Expression::parse(
+                &mut vec![Token {
+                    kind: TokenKind::Literal {
+                        kind: crate::token::LiteralKind::Integer,
+                        chars: vec!['0', '0', '0', '0', '9', '0'],
+                    },
+                }]
+                .into_iter()
+                .peekable(),
+            ),
+            Expression::Number(90)
+        );
+    }
+
+    #[test]
+    fn unary_operation() {
+        assert_eq!(
+            Expression::parse(
+                &mut vec![
+                    Token {
+                        kind: TokenKind::Minus,
+                    },
+                    Token {
+                        kind: TokenKind::Literal {
+                            kind: crate::token::LiteralKind::Integer,
+                            chars: vec!['9', '0'],
+                        },
+                    }
+                ]
+                .into_iter()
+                .peekable(),
+            ),
+            Expression::UnaryOperation {
+                operation: UnaryOperationKind::Negative,
+                rhs: Box::new(Expression::Number(90))
+            }
+        );
+
+        assert_eq!(
+            Expression::parse(
+                &mut vec![
+                    Token {
+                        kind: TokenKind::Minus,
+                    },
+                    Token {
+                        kind: TokenKind::Minus,
+                    },
+                    Token {
+                        kind: TokenKind::Literal {
+                            kind: crate::token::LiteralKind::Integer,
+                            chars: vec!['9', '0'],
+                        },
+                    }
+                ]
+                .into_iter()
+                .peekable(),
+            ),
+            Expression::UnaryOperation {
+                operation: UnaryOperationKind::Negative,
+                rhs: Box::new(Expression::UnaryOperation {
+                    operation: UnaryOperationKind::Negative,
+                    rhs: Box::new(Expression::Number(90))
+                })
+            }
+        );
     }
 }
