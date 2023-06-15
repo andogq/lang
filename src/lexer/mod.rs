@@ -17,6 +17,9 @@ pub fn tokenize(source: &str) -> impl Iterator<Item = Token> + '_ {
             Token::new(match c {
                 '=' => TokenKind::Equals,
                 '+' => TokenKind::Plus,
+                '-' => TokenKind::Minus,
+                '*' => TokenKind::Asterix,
+                '^' => TokenKind::Hat,
                 ';' => TokenKind::Semi,
                 '/' if cursor.peek_next().map(|c| c == '/').unwrap_or_default() => {
                     // Skip next `/`
@@ -24,6 +27,9 @@ pub fn tokenize(source: &str) -> impl Iterator<Item = Token> + '_ {
 
                     TokenKind::Comment(String::from_iter(cursor.take_while(|c| c != '\n')))
                 }
+                '/' => TokenKind::Slash,
+                '(' => TokenKind::LSmooth,
+                ')' => TokenKind::RSmooth,
                 c if c.is_ascii_whitespace() => {
                     // Consume through to the end of whitespace
                     cursor.skip_while(|c| c.is_ascii_whitespace());
@@ -37,6 +43,7 @@ pub fn tokenize(source: &str) -> impl Iterator<Item = Token> + '_ {
                 c if is_ident_char(c) => {
                     let ident_str = String::from_iter(cursor.retake_while(is_ident_char));
                     match ident_str.as_str() {
+                        // Match for keywords
                         "let" => TokenKind::Keyword(Keyword::Let),
                         _ => TokenKind::Identifier(ident_str),
                     }
