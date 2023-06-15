@@ -1,10 +1,18 @@
-#[derive(Debug, PartialEq, Eq)]
+use crate::lexer::cursor::Position;
+
+#[derive(Debug)]
 pub struct Token {
     pub kind: TokenKind,
+    pub position: Position,
 }
 impl Token {
-    pub fn new(kind: TokenKind) -> Self {
-        Self { kind }
+    pub fn new(kind: TokenKind, position: Position) -> Self {
+        Self { kind, position }
+    }
+}
+impl PartialEq for Token {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
     }
 }
 

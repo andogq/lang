@@ -1,6 +1,10 @@
 use crate::token::TokenKind;
 
-use super::{expression::Expression, PeekableTokens};
+use super::{
+    error::{ParserError, ParserResult},
+    expression::Expression,
+    PeekableTokens,
+};
 
 #[derive(Debug)]
 pub struct Let {
@@ -8,25 +12,28 @@ pub struct Let {
     rhs: Expression,
 }
 impl Let {
-    pub fn parse(tokens: &mut PeekableTokens) -> Let {
-        let Some(TokenKind::Identifier(ident)) = tokens.next().map(|t| t.kind) else {
-            panic!("ident token following let");
+    pub fn parse(tokens: &mut PeekableTokens) -> ParserResult<Let> {
+        let token = tokens.next().ok_or(ParserError::ExpectedTokenToFollow)?;
+        let TokenKind::Identifier(ident) = token.kind else {
+            return Err(ParserError::ExpectedToken { token: TokenKind::Identifier(String::new()), position: token.position })
         };
 
         // Consume = sign
-        let Some(TokenKind::Equals) = tokens.next().map(|t| t.kind) else {
-            panic!("equals token following let ident");
+        let token = tokens.next().ok_or(ParserError::ExpectedTokenToFollow)?;
+        let TokenKind::Equals = token.kind else {
+            return Err(ParserError::ExpectedToken { token: TokenKind::Equals, position: token.position })
         };
 
-        let expression = Expression::parse(tokens);
+        let expression = Expression::parse(tokens)?;
 
-        let Some(TokenKind::Semi) = tokens.next().map(|t| t.kind) else {
-            panic!("expected semi colon following let statement");
+        let token = tokens.next().ok_or(ParserError::ExpectedTokenToFollow)?;
+        let TokenKind::Semi = token.kind else {
+            return Err(ParserError::ExpectedToken { token: TokenKind::Semi, position: token.position });
         };
 
-        Let {
+        Ok(Let {
             ident,
             rhs: expression,
-        }
+        })
     }
 }

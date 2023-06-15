@@ -1,6 +1,9 @@
 use crate::token::{LiteralKind, TokenKind};
 
-use super::PeekableTokens;
+use super::{
+    error::{ParserError, ParserResult},
+    PeekableTokens,
+};
 
 /// Each of the binary operations that can take place within an expression.
 #[derive(Debug, PartialEq, Eq)]
@@ -60,8 +63,8 @@ impl Expression {
     /// ```txt
     /// E -> T {("+" | "-") T}
     /// ```
-    pub fn parse_expression(tokens: &mut PeekableTokens) -> Expression {
-        let mut expr = Self::parse_term(tokens);
+    pub fn parse_expression(tokens: &mut PeekableTokens) -> ParserResult<Expression> {
+        let mut expr = Self::parse_term(tokens)?;
 
         loop {
             let operation = tokens.peek().and_then(|t| match t.kind {
@@ -77,19 +80,19 @@ impl Expression {
             expr = Expression::BinaryOperation {
                 operation,
                 lhs: Box::new(expr),
-                rhs: Box::new(Self::parse_term(tokens)),
+                rhs: Box::new(Self::parse_term(tokens)?),
             };
         }
 
-        expr
+        Ok(expr)
     }
 
     /// Parse the `T` term from the grammar
     /// ```txt
     /// T -> F {("*" | "/") F}
     /// ```
-    pub fn parse_term(tokens: &mut PeekableTokens) -> Expression {
-        let mut expr = Self::parse_factor(tokens);
+    pub fn parse_term(tokens: &mut PeekableTokens) -> ParserResult<Expression> {
+        let mut expr = Self::parse_factor(tokens)?;
 
         loop {
             let operation = tokens.peek().and_then(|t| match t.kind {
@@ -105,73 +108,88 @@ impl Expression {
             expr = Expression::BinaryOperation {
                 operation,
                 lhs: Box::new(expr),
-                rhs: Box::new(Self::parse_factor(tokens)),
+                rhs: Box::new(Self::parse_factor(tokens)?),
             };
         }
 
-        expr
+        Ok(expr)
     }
 
     /// Parse the `F` term from the grammar
     /// ```txt
     /// F -> P ["^" F]
     /// ```
-    pub fn parse_factor(tokens: &mut PeekableTokens) -> Expression {
-        let p = Self::parse_primary(tokens);
+    pub fn parse_factor(tokens: &mut PeekableTokens) -> ParserResult<Expression> {
+        let p = Self::parse_primary(tokens)?;
 
-        if tokens
-            .peek()
-            .map(|t| matches!(t.kind, TokenKind::Hat))
-            .unwrap_or_default()
-        {
-            // Consume hat
-            tokens.next();
+        Ok(
+            if tokens
+                .peek()
+                .map(|t| matches!(t.kind, TokenKind::Hat))
+                .unwrap_or_default()
+            {
+                // Consume hat
+                tokens.next();
 
-            Expression::BinaryOperation {
-                operation: BinaryOperationKind::Exp,
-                lhs: Box::new(p),
-                rhs: Box::new(Self::parse_factor(tokens)),
-            }
-        } else {
-            p
-        }
+                Expression::BinaryOperation {
+                    operation: BinaryOperationKind::Exp,
+                    lhs: Box::new(p),
+                    rhs: Box::new(Self::parse_factor(tokens)?),
+                }
+            } else {
+                p
+            },
+        )
     }
 
     /// Parse the `P` term from the grammar
     /// ```txt
     /// P -> v | "(" E ")" | "-" T
     /// ```
-    pub fn parse_primary(tokens: &mut PeekableTokens) -> Expression {
-        match tokens.next().expect("token to follow").kind {
+    pub fn parse_primary(tokens: &mut PeekableTokens) -> ParserResult<Expression> {
+        let token = tokens.next().ok_or(ParserError::ExpectedTokenToFollow)?;
+        match token.kind {
             TokenKind::Literal {
                 kind: LiteralKind::Integer,
                 chars,
-            } => Expression::Number(
-                dbg!(chars)
+            } => Ok(Expression::Number(
+                chars
                     .iter()
                     .cloned()
                     .collect::<String>()
                     .parse::<usize>()
-                    .expect("valid base 10 number"),
-            ),
-            TokenKind::Identifier(ident) => Expression::Ident(ident),
+                    .map_err(|source| ParserError::ParseInt {
+                        source,
+                        position: token.position,
+                    })?,
+            )),
+            TokenKind::Identifier(ident) => Ok(Expression::Ident(ident)),
             TokenKind::LSmooth => {
-                let expression = Self::parse_expression(tokens);
-                let Some(TokenKind::RSmooth) = tokens.next().map(|t| t.kind) else {
-                    panic!("expected RSmooth");
-                };
-                expression
+                let expression = Self::parse_expression(tokens)?;
+
+                let token = tokens.next().ok_or(ParserError::ExpectedTokenToFollow)?;
+                if token.kind == TokenKind::RSmooth {
+                    Ok(expression)
+                } else {
+                    Err(ParserError::ExpectedToken {
+                        token: TokenKind::RSmooth,
+                        position: token.position,
+                    })
+                }
             }
-            TokenKind::Minus => Expression::UnaryOperation {
+            TokenKind::Minus => Ok(Expression::UnaryOperation {
                 operation: UnaryOperationKind::Negative,
-                rhs: Box::new(Self::parse_term(tokens)),
-            },
-            _ => panic!("unexpected token"),
+                rhs: Box::new(Self::parse_term(tokens)?),
+            }),
+            t => Err(ParserError::UnexpectedToken {
+                token: t,
+                position: token.position,
+            }),
         }
     }
 
     /// Parses tokens into an expression (identical to [Self::parse_expression] call).
-    pub fn parse(tokens: &mut PeekableTokens) -> Expression {
+    pub fn parse(tokens: &mut PeekableTokens) -> ParserResult<Expression> {
         Self::parse_expression(tokens)
     }
 }
@@ -179,7 +197,7 @@ impl Expression {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::token::Token;
+    use crate::{lexer::cursor::Position, token::Token};
 
     #[test]
     fn number_expressions() {
@@ -190,10 +208,12 @@ mod tests {
                         kind: crate::token::LiteralKind::Integer,
                         chars: vec!['9', '0'],
                     },
+                    position: Position::new(),
                 }]
                 .into_iter()
                 .peekable(),
-            ),
+            )
+            .unwrap(),
             Expression::Number(90)
         );
 
@@ -204,10 +224,12 @@ mod tests {
                         kind: crate::token::LiteralKind::Integer,
                         chars: vec!['0', '0', '0', '0', '9', '0'],
                     },
+                    position: Position::new(),
                 }]
                 .into_iter()
                 .peekable(),
-            ),
+            )
+            .unwrap(),
             Expression::Number(90)
         );
     }
@@ -219,17 +241,20 @@ mod tests {
                 &mut vec![
                     Token {
                         kind: TokenKind::Minus,
+                        position: Position::new(),
                     },
                     Token {
                         kind: TokenKind::Literal {
                             kind: crate::token::LiteralKind::Integer,
                             chars: vec!['9', '0'],
                         },
+                        position: Position::new(),
                     }
                 ]
                 .into_iter()
                 .peekable(),
-            ),
+            )
+            .unwrap(),
             Expression::UnaryOperation {
                 operation: UnaryOperationKind::Negative,
                 rhs: Box::new(Expression::Number(90))
@@ -241,20 +266,24 @@ mod tests {
                 &mut vec![
                     Token {
                         kind: TokenKind::Minus,
+                        position: Position::new(),
                     },
                     Token {
                         kind: TokenKind::Minus,
+                        position: Position::new(),
                     },
                     Token {
                         kind: TokenKind::Literal {
                             kind: crate::token::LiteralKind::Integer,
                             chars: vec!['9', '0'],
                         },
+                        position: Position::new(),
                     }
                 ]
                 .into_iter()
                 .peekable(),
-            ),
+            )
+            .unwrap(),
             Expression::UnaryOperation {
                 operation: UnaryOperationKind::Negative,
                 rhs: Box::new(Expression::UnaryOperation {

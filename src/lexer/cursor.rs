@@ -1,8 +1,37 @@
-use std::{iter::Peekable, str::Chars};
+use std::{fmt::Display, iter::Peekable, str::Chars};
+
+#[derive(Debug, Clone)]
+pub struct Position {
+    line: usize,
+    character: usize,
+}
+impl Position {
+    pub fn new() -> Self {
+        Self {
+            line: 0,
+            character: 0,
+        }
+    }
+
+    pub fn next_line(&mut self) {
+        self.line += 1;
+        self.character = 0;
+    }
+
+    pub fn next_character(&mut self) {
+        self.character += 1;
+    }
+}
+impl Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.line + 1, self.character + 1)
+    }
+}
 
 pub struct Cursor<'a> {
     chars: Peekable<Chars<'a>>,
     current: Option<char>,
+    position: Position,
 }
 
 impl<'a> Cursor<'a> {
@@ -10,12 +39,20 @@ impl<'a> Cursor<'a> {
         Self {
             chars: source.chars().peekable(),
             current: None,
+            position: Position::new(),
         }
     }
 
-    pub fn next(&mut self) -> Option<char> {
+    pub fn next(&mut self) -> Option<(char, Position)> {
         self.current = self.chars.next();
-        self.current
+
+        if self.current == Some('\n') {
+            self.position.next_line();
+        } else {
+            self.position.next_character();
+        }
+
+        self.current.map(|c| (c, self.position.clone()))
     }
 
     pub fn peek_next(&mut self) -> Option<char> {
