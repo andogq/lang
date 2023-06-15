@@ -34,6 +34,24 @@ pub struct Cursor<'a> {
     position: Position,
 }
 
+#[allow(unused)]
+pub enum TakeOption {
+    Take,
+    Skip,
+    Stop,
+    TakeAndStop,
+    SkipAndStop,
+}
+impl From<bool> for TakeOption {
+    fn from(b: bool) -> Self {
+        if b {
+            Self::Take
+        } else {
+            Self::Stop
+        }
+    }
+}
+
 impl<'a> Cursor<'a> {
     pub fn new(source: &'a str) -> Self {
         Self {
@@ -61,7 +79,7 @@ impl<'a> Cursor<'a> {
 
     pub fn take_while_config<F, S>(&mut self, mut state: S, retake: bool, f: F) -> Vec<char>
     where
-        F: Fn(char, S) -> (bool, S),
+        F: Fn(char, S) -> (TakeOption, S),
     {
         let mut chars = if let (true, Some(c)) = (retake, self.current) {
             // Initialise chars with previous `c`
@@ -71,20 +89,43 @@ impl<'a> Cursor<'a> {
         };
 
         while let Some(c) = self.peek_next() {
-            let (valid, next_state) = f(c, state);
+            let (take_option, next_state) = f(c, state);
 
-            if !valid {
-                break;
-            } else {
-                // Save char
-                chars.push(c);
+            match take_option {
+                TakeOption::Take => {
+                    // Save char
+                    chars.push(c);
 
-                // Advance pointer
-                self.next();
+                    // Advance pointer
+                    self.next();
 
-                // Move to next state
-                state = next_state;
-            }
+                    // Move to next state
+                    state = next_state;
+                }
+                TakeOption::Skip => {
+                    // Advance pointer
+                    self.next();
+
+                    // Move to next state
+                    state = next_state;
+                }
+                TakeOption::Stop => break,
+                TakeOption::TakeAndStop => {
+                    // Save char
+                    chars.push(c);
+
+                    // Advance pointer
+                    self.next();
+
+                    break;
+                }
+                TakeOption::SkipAndStop => {
+                    // Advance pointer
+                    self.next();
+
+                    break;
+                }
+            };
         }
 
         chars
@@ -94,14 +135,14 @@ impl<'a> Cursor<'a> {
     where
         F: Fn(char) -> bool,
     {
-        self.take_while_config((), false, |c, _| (f(c), ()))
+        self.take_while_config((), false, |c, _| (TakeOption::from(f(c)), ()))
     }
 
     pub fn retake_while<F>(&mut self, f: F) -> Vec<char>
     where
         F: Fn(char) -> bool,
     {
-        self.take_while_config((), true, |c, _| (f(c), ()))
+        self.take_while_config((), true, |c, _| (TakeOption::from(f(c)), ()))
     }
 
     pub fn skip_while<F>(&mut self, f: F)

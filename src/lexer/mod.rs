@@ -3,6 +3,8 @@ use crate::{
     token::{Keyword, LiteralKind, Token, TokenKind},
 };
 
+use self::cursor::TakeOption;
+
 pub mod cursor;
 
 fn is_ident_char(c: char) -> bool {
@@ -69,17 +71,20 @@ impl Iterator for Lexer<'_> {
                     '"' => {
                         let chars = self.cursor.take_while_config(false, false, |c, escaped| {
                             if c == '\\' {
-                                // Backslash can escape itself
-                                (true, !escaped)
+                                if !escaped {
+                                    // Don't emit this back slash, as it is causing an escape
+                                    (TakeOption::Skip, true)
+                                } else {
+                                    // Backslash can escape itself
+                                    (TakeOption::Take, false)
+                                }
                             } else if c == '"' && !escaped {
                                 // End of string reached with no escape
-                                (false, false)
+                                (TakeOption::SkipAndStop, false)
                             } else {
-                                (true, false)
+                                (TakeOption::Take, false)
                             }
                         });
-
-                        self.cursor.next();
 
                         TokenKind::Literal {
                             kind: LiteralKind::String,
@@ -101,7 +106,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn integer_token() {
+    fn integer() {
         assert_eq!(
             Lexer::new("-90").collect::<Vec<_>>(),
             vec![
@@ -118,5 +123,23 @@ mod tests {
                 }
             ]
         );
+    }
+
+    #[test]
+    fn string() {
+        assert_eq!(
+            Lexer::new(r#""this is a \\very\\ cool \"string\"\\""#).collect::<Vec<_>>(),
+            vec![Token {
+                kind: TokenKind::Literal {
+                    kind: LiteralKind::String,
+                    chars: vec![
+                        't', 'h', 'i', 's', ' ', 'i', 's', ' ', 'a', ' ', '\\', 'v', 'e', 'r', 'y',
+                        '\\', ' ', 'c', 'o', 'o', 'l', ' ', '"', 's', 't', 'r', 'i', 'n', 'g', '"',
+                        '\\'
+                    ]
+                },
+                position: Position::new()
+            }]
+        )
     }
 }
