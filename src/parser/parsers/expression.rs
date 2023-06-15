@@ -1,6 +1,6 @@
 use crate::{
     parser::error::{ParserError, ParserResult},
-    token::{LiteralKind, TokenKind},
+    token::{Literal, TokenKind},
     token_stream::{TokenIterator, TokenStream},
 };
 
@@ -43,7 +43,7 @@ pub enum Expression {
         rhs: Box<Expression>,
     },
     /// A literal.
-    Literal { kind: LiteralKind, chars: Vec<char> },
+    Literal(Literal),
 }
 
 /// The following grammar is used to parse expressions. Expressions can be terminated by a number,
@@ -149,7 +149,7 @@ impl Expression {
     {
         let token = tokens.next()?;
         match token.kind {
-            TokenKind::Literal { kind, chars } => Ok(Expression::Literal { kind, chars }),
+            TokenKind::Literal(literal) => Ok(Expression::Literal(literal)),
             TokenKind::Identifier(ident) => Ok(Expression::Ident(ident)),
             TokenKind::LSmooth => {
                 let expression = Self::parse_expression(tokens)?;
@@ -188,37 +188,13 @@ mod tests {
         assert_eq!(
             Expression::parse(&mut TokenStream::from(
                 [Token {
-                    kind: TokenKind::Literal {
-                        kind: crate::token::LiteralKind::Integer,
-                        chars: vec!['9', '0'],
-                    },
+                    kind: TokenKind::Literal(Literal::Integer(90)),
                     position: Position::new(),
                 }]
                 .into_iter()
             ))
             .unwrap(),
-            Expression::Literal {
-                kind: LiteralKind::Integer,
-                chars: vec!['9', '0']
-            }
-        );
-
-        assert_eq!(
-            Expression::parse(&mut TokenStream::from(
-                [Token {
-                    kind: TokenKind::Literal {
-                        kind: crate::token::LiteralKind::Integer,
-                        chars: vec!['0', '0', '0', '0', '9', '0'],
-                    },
-                    position: Position::new(),
-                }]
-                .into_iter()
-            ))
-            .unwrap(),
-            Expression::Literal {
-                kind: LiteralKind::Integer,
-                chars: vec!['0', '0', '0', '0', '9', '0']
-            }
+            Expression::Literal(Literal::Integer(90))
         );
     }
 
@@ -232,10 +208,7 @@ mod tests {
                         position: Position::new(),
                     },
                     Token {
-                        kind: TokenKind::Literal {
-                            kind: crate::token::LiteralKind::Integer,
-                            chars: vec!['9', '0'],
-                        },
+                        kind: TokenKind::Literal(Literal::Integer(90)),
                         position: Position::new(),
                     }
                 ]
@@ -244,10 +217,7 @@ mod tests {
             .unwrap(),
             Expression::UnaryOperation {
                 operation: UnaryOperationKind::Negative,
-                rhs: Box::new(Expression::Literal {
-                    kind: LiteralKind::Integer,
-                    chars: vec!['9', '0']
-                })
+                rhs: Box::new(Expression::Literal(Literal::Integer(90)))
             }
         );
 
@@ -263,10 +233,7 @@ mod tests {
                         position: Position::new(),
                     },
                     Token {
-                        kind: TokenKind::Literal {
-                            kind: LiteralKind::Integer,
-                            chars: vec!['9', '0'],
-                        },
+                        kind: TokenKind::Literal(Literal::Integer(90)),
                         position: Position::new(),
                     }
                 ]
@@ -277,10 +244,7 @@ mod tests {
                 operation: UnaryOperationKind::Negative,
                 rhs: Box::new(Expression::UnaryOperation {
                     operation: UnaryOperationKind::Negative,
-                    rhs: Box::new(Expression::Literal {
-                        kind: LiteralKind::Integer,
-                        chars: vec!['9', '0'],
-                    })
+                    rhs: Box::new(Expression::Literal(Literal::Integer(90)))
                 })
             }
         );

@@ -17,10 +17,10 @@ impl PartialEq for Token {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LiteralKind {
-    String,
-    Integer,
-    Boolean,
+pub enum Literal {
+    String(String),
+    Integer(isize),
+    Boolean(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,7 +43,7 @@ impl TryFrom<&str> for Keyword {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenKind {
     Keyword(Keyword),
-    Literal { kind: LiteralKind, chars: Vec<char> },
+    Literal(Literal),
     Identifier(String),
     Whitespace,
     Semi,

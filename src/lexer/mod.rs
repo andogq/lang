@@ -1,6 +1,10 @@
+use std::num::ParseIntError;
+
+use thiserror::Error;
+
 use crate::{
     lexer::cursor::Cursor,
-    token::{Keyword, LiteralKind, Token, TokenKind},
+    token::{Keyword, Literal, Token, TokenKind},
 };
 
 use self::cursor::TakeOption;
@@ -9,6 +13,12 @@ pub mod cursor;
 
 fn is_ident_char(c: char) -> bool {
     c.is_ascii_alphabetic() || c == '_'
+}
+
+#[derive(Debug, Error)]
+pub enum LexerError {
+    #[error("unable to parse int: {0}")]
+    ParseIntError(#[from] ParseIntError),
 }
 
 pub struct Lexer<'a> {
@@ -24,11 +34,11 @@ impl<'a> Lexer<'a> {
 }
 
 impl Iterator for Lexer<'_> {
-    type Item = Token;
+    type Item = Result<Token, LexerError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.cursor.next().map(|(c, position)| {
-            Token::new(
+            Ok(Token::new(
                 match c {
                     '=' => TokenKind::Equals,
                     '+' => TokenKind::Plus,
@@ -56,23 +66,20 @@ impl Iterator for Lexer<'_> {
 
                         TokenKind::Whitespace
                     }
-                    c if c.is_ascii_digit() => TokenKind::Literal {
-                        kind: LiteralKind::Integer,
-                        chars: self.cursor.retake_while(|c| c.is_ascii_digit()),
-                    },
+                    c if c.is_ascii_digit() => TokenKind::Literal(Literal::Integer(
+                        self.cursor
+                            .retake_while(|c| c.is_ascii_digit())
+                            .into_iter()
+                            .collect::<String>()
+                            .parse()?,
+                    )),
                     c if is_ident_char(c) => {
                         let ident_str = String::from_iter(self.cursor.retake_while(is_ident_char));
 
                         match (ident_str.as_str(), Keyword::try_from(ident_str.as_str())) {
                             // Match for literals that appear as idents
-                            ("true", _) => TokenKind::Literal {
-                                kind: LiteralKind::Boolean,
-                                chars: ident_str.chars().collect(),
-                            },
-                            ("false", _) => TokenKind::Literal {
-                                kind: LiteralKind::Boolean,
-                                chars: ident_str.chars().collect(),
-                            },
+                            ("true", _) => TokenKind::Literal(Literal::Boolean(true)),
+                            ("false", _) => TokenKind::Literal(Literal::Boolean(false)),
 
                             // Match for keywords
                             (_, Ok(keyword)) => TokenKind::Keyword(keyword),
@@ -99,15 +106,12 @@ impl Iterator for Lexer<'_> {
                             }
                         });
 
-                        TokenKind::Literal {
-                            kind: LiteralKind::String,
-                            chars,
-                        }
+                        TokenKind::Literal(Literal::String(chars.into_iter().collect()))
                     }
                     _ => TokenKind::Unknown,
                 },
                 position,
-            )
+            ))
         })
     }
 }
@@ -121,17 +125,16 @@ mod tests {
     #[test]
     fn integer() {
         assert_eq!(
-            Lexer::new("-90").collect::<Vec<_>>(),
+            Lexer::new("-90")
+                .collect::<Result<Vec<_>, LexerError>>()
+                .unwrap(),
             vec![
                 Token {
                     kind: TokenKind::Minus,
                     position: Position::new()
                 },
                 Token {
-                    kind: TokenKind::Literal {
-                        kind: LiteralKind::Integer,
-                        chars: vec!['9', '0']
-                    },
+                    kind: TokenKind::Literal(Literal::Integer(90)),
                     position: Position::new()
                 }
             ]
@@ -141,16 +144,26 @@ mod tests {
     #[test]
     fn string() {
         assert_eq!(
-            Lexer::new(r#""this is a \\very\\ cool \"string\"\\""#).collect::<Vec<_>>(),
+            Lexer::new(r#""this is a \\very\\ cool \"string\"\\""#)
+                .collect::<Result<Vec<_>, LexerError>>()
+                .unwrap(),
             vec![Token {
-                kind: TokenKind::Literal {
-                    kind: LiteralKind::String,
-                    chars: vec![
-                        't', 'h', 'i', 's', ' ', 'i', 's', ' ', 'a', ' ', '\\', 'v', 'e', 'r', 'y',
-                        '\\', ' ', 'c', 'o', 'o', 'l', ' ', '"', 's', 't', 'r', 'i', 'n', 'g', '"',
-                        '\\'
-                    ]
-                },
+                kind: TokenKind::Literal(Literal::String(
+                    r#"this is a \very\ cool "string"\"#.to_string()
+                )),
+                position: Position::new()
+            }]
+        )
+    }
+
+    #[test]
+    fn boolean() {
+        assert_eq!(
+            Lexer::new("true")
+                .collect::<Result<Vec<_>, LexerError>>()
+                .unwrap(),
+            vec![Token {
+                kind: TokenKind::Literal(Literal::Boolean(true)),
                 position: Position::new()
             }]
         )

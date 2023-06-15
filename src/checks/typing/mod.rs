@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::{
     parser::{parsers::Expression, AstNode},
-    token::LiteralKind,
+    token::Literal,
 };
 
 // Each of the possible types that can be expressed.
@@ -85,10 +85,10 @@ impl TypeEnvironment {
                 // TODO: Make sure operation can be applied to RHS
                 self.get_expression_type(*rhs)
             }
-            Expression::Literal { kind, .. } => Ok(match kind {
-                LiteralKind::Integer => Type::Integer,
-                LiteralKind::String => Type::String,
-                LiteralKind::Boolean => Type::Boolean,
+            Expression::Literal(literal) => Ok(match literal {
+                Literal::Integer(_) => Type::Integer,
+                Literal::String(_) => Type::String,
+                Literal::Boolean(_) => Type::Boolean,
             }),
         }
     }
@@ -104,10 +104,7 @@ mod tests {
         assert_eq!(
             TypeEnvironment::from_ast(vec![AstNode::Let(Let {
                 ident: "a".to_string(),
-                rhs: Expression::Literal {
-                    kind: LiteralKind::Integer,
-                    chars: vec!['1', '0']
-                }
+                rhs: Expression::Literal(Literal::Integer(10),)
             })])
             .unwrap()
             .ident_types,
@@ -121,17 +118,11 @@ mod tests {
             TypeEnvironment::from_ast(vec![
                 AstNode::Let(Let {
                     ident: "a".to_string(),
-                    rhs: Expression::Literal {
-                        kind: LiteralKind::Integer,
-                        chars: vec!['1', '0']
-                    }
+                    rhs: Expression::Literal(Literal::Integer(10))
                 }),
                 AstNode::Let(Let {
                     ident: "a".to_string(),
-                    rhs: Expression::Literal {
-                        kind: LiteralKind::Integer,
-                        chars: vec!['1', '0']
-                    }
+                    rhs: Expression::Literal(Literal::Integer(10))
                 })
             ]),
             Err(TypeError::IdentRedeclared(_))
@@ -144,33 +135,21 @@ mod tests {
             TypeEnvironment::from_ast(vec![
                 AstNode::Let(Let {
                     ident: "a".to_string(),
-                    rhs: Expression::Literal {
-                        kind: LiteralKind::Integer,
-                        chars: vec!['1', '0']
-                    }
+                    rhs: Expression::Literal(Literal::Integer(10))
                 }),
                 AstNode::Let(Let {
                     ident: "b".to_string(),
-                    rhs: Expression::Literal {
-                        kind: LiteralKind::Integer,
-                        chars: vec!['1', '0']
-                    }
+                    rhs: Expression::Literal(Literal::Integer(10))
                 }),
                 AstNode::Let(Let {
                     ident: "c".to_string(),
                     rhs: Expression::BinaryOperation {
                         operation: BinaryOperationKind::Add,
-                        lhs: Box::new(Expression::Literal {
-                            kind: LiteralKind::Integer,
-                            chars: vec!['1', '0']
-                        }),
+                        lhs: Box::new(Expression::Literal(Literal::Integer(10))),
                         rhs: Box::new(Expression::BinaryOperation {
                             operation: BinaryOperationKind::Mult,
                             lhs: Box::new(Expression::Ident("b".to_string())),
-                            rhs: Box::new(Expression::Literal {
-                                kind: LiteralKind::Integer,
-                                chars: vec!['1', '0']
-                            })
+                            rhs: Box::new(Expression::Literal(Literal::Integer(10)))
                         })
                     }
                 })
@@ -190,14 +169,8 @@ mod tests {
         assert!(matches!(
             TypeEnvironment::from_ast(vec![AstNode::Expression(Expression::BinaryOperation {
                 operation: BinaryOperationKind::Add,
-                lhs: Box::new(Expression::Literal {
-                    kind: LiteralKind::Boolean,
-                    chars: vec!['f', 'a', 'l', 's', 'e']
-                }),
-                rhs: Box::new(Expression::Literal {
-                    kind: LiteralKind::Integer,
-                    chars: vec!['1', '0']
-                })
+                lhs: Box::new(Expression::Literal(Literal::Boolean(false))),
+                rhs: Box::new(Expression::Literal(Literal::Integer(10)))
             })]),
             Err(TypeError::MismatchedTypes { .. })
         ))
