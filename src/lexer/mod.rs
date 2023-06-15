@@ -9,11 +9,23 @@ fn is_ident_char(c: char) -> bool {
     c.is_ascii_alphabetic() || c == '_'
 }
 
-pub fn tokenize(source: &str) -> impl Iterator<Item = Token> + '_ {
-    let mut cursor = Cursor::new(source);
+pub struct Lexer<'a> {
+    cursor: Cursor<'a>,
+}
 
-    std::iter::from_fn(move || {
-        cursor.next().map(|(c, position)| {
+impl<'a> Lexer<'a> {
+    pub fn new(source: &'a str) -> Self {
+        Self {
+            cursor: Cursor::new(source),
+        }
+    }
+}
+
+impl Iterator for Lexer<'_> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.cursor.next().map(|(c, position)| {
             Token::new(
                 match c {
                     '=' => TokenKind::Equals,
@@ -22,27 +34,32 @@ pub fn tokenize(source: &str) -> impl Iterator<Item = Token> + '_ {
                     '*' => TokenKind::Asterix,
                     '^' => TokenKind::Hat,
                     ';' => TokenKind::Semi,
-                    '/' if cursor.peek_next().map(|c| c == '/').unwrap_or_default() => {
+                    '/' if self
+                        .cursor
+                        .peek_next()
+                        .map(|c| c == '/')
+                        .unwrap_or_default() =>
+                    {
                         // Skip next `/`
-                        cursor.next();
+                        self.cursor.next();
 
-                        TokenKind::Comment(String::from_iter(cursor.take_while(|c| c != '\n')))
+                        TokenKind::Comment(String::from_iter(self.cursor.take_while(|c| c != '\n')))
                     }
                     '/' => TokenKind::Slash,
                     '(' => TokenKind::LSmooth,
                     ')' => TokenKind::RSmooth,
                     c if c.is_ascii_whitespace() => {
                         // Consume through to the end of whitespace
-                        cursor.skip_while(|c| c.is_ascii_whitespace());
+                        self.cursor.skip_while(|c| c.is_ascii_whitespace());
 
                         TokenKind::Whitespace
                     }
                     c if c.is_ascii_digit() => TokenKind::Literal {
                         kind: LiteralKind::Integer,
-                        chars: cursor.retake_while(|c| c.is_ascii_digit()),
+                        chars: self.cursor.retake_while(|c| c.is_ascii_digit()),
                     },
                     c if is_ident_char(c) => {
-                        let ident_str = String::from_iter(cursor.retake_while(is_ident_char));
+                        let ident_str = String::from_iter(self.cursor.retake_while(is_ident_char));
                         match ident_str.as_str() {
                             // Match for keywords
                             "let" => TokenKind::Keyword(Keyword::Let),
@@ -50,7 +67,7 @@ pub fn tokenize(source: &str) -> impl Iterator<Item = Token> + '_ {
                         }
                     }
                     '"' => {
-                        let chars = cursor.take_while_config(false, false, |c, escaped| {
+                        let chars = self.cursor.take_while_config(false, false, |c, escaped| {
                             if c == '\\' {
                                 // Backslash can escape itself
                                 (true, !escaped)
@@ -62,7 +79,7 @@ pub fn tokenize(source: &str) -> impl Iterator<Item = Token> + '_ {
                             }
                         });
 
-                        cursor.next();
+                        self.cursor.next();
 
                         TokenKind::Literal {
                             kind: LiteralKind::String,
@@ -74,7 +91,7 @@ pub fn tokenize(source: &str) -> impl Iterator<Item = Token> + '_ {
                 position,
             )
         })
-    })
+    }
 }
 
 #[cfg(test)]
@@ -83,14 +100,10 @@ mod tests {
 
     use super::*;
 
-    fn tokenize(source: &str) -> Vec<Token> {
-        super::tokenize(source).collect()
-    }
-
     #[test]
     fn integer_token() {
         assert_eq!(
-            tokenize("-90"),
+            Lexer::new("-90").collect::<Vec<_>>(),
             vec![
                 Token {
                     kind: TokenKind::Minus,

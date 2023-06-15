@@ -1,12 +1,14 @@
-use lexer::tokenize;
+use parser::error::ParserResult;
+use token_stream::TokenStream;
 
-use crate::{parser::parse, token::TokenKind};
+use crate::{lexer::Lexer, parser::parse, token::TokenKind};
 
 mod lexer;
 mod parser;
 mod token;
+mod token_stream;
 
-fn main() {
+fn main() -> ParserResult<()> {
     let source = r#"let a = 3;
 let b = 5;
 
@@ -16,11 +18,9 @@ let c = a + b;
 let a_string = "this is a \\very\\ cool \"string\"\\";
 "#;
 
-    let tokens = tokenize(source)
-        .filter(|token| !matches!(token.kind, TokenKind::Whitespace))
-        .collect::<Vec<_>>();
-    dbg!(&tokens);
+    let tokens = Lexer::new(source).filter(|token| !matches!(token.kind, TokenKind::Whitespace));
+    let ast = parse(TokenStream::from(tokens));
+    dbg!(ast)?;
 
-    let ast = parse(tokens);
-    dbg!(ast);
+    Ok(())
 }

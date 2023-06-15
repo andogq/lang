@@ -1,8 +1,11 @@
-use crate::token::{LiteralKind, TokenKind};
+use crate::{
+    token::{LiteralKind, TokenKind},
+    token_stream::TokenIterator,
+};
 
 use super::{
     error::{ParserError, ParserResult},
-    PeekableTokens,
+    TokenStream,
 };
 
 /// Each of the binary operations that can take place within an expression.
@@ -63,19 +66,21 @@ impl Expression {
     /// ```txt
     /// E -> T {("+" | "-") T}
     /// ```
-    pub fn parse_expression(tokens: &mut PeekableTokens) -> ParserResult<Expression> {
+    pub fn parse_expression<I>(tokens: &mut TokenStream<I>) -> ParserResult<Expression>
+    where
+        I: TokenIterator,
+    {
         let mut expr = Self::parse_term(tokens)?;
 
         loop {
-            let operation = tokens.peek().and_then(|t| match t.kind {
+            let Some(operation) = tokens.peek().and_then(|t| match t.kind {
                 TokenKind::Plus => Some(BinaryOperationKind::Add),
                 TokenKind::Minus => Some(BinaryOperationKind::Sub),
                 _ => None,
-            });
-            let Some(operation) = operation else { break };
+            }) else { break };
 
             // Consume peeked token
-            tokens.next();
+            tokens.next()?;
 
             expr = Expression::BinaryOperation {
                 operation,
@@ -91,19 +96,21 @@ impl Expression {
     /// ```txt
     /// T -> F {("*" | "/") F}
     /// ```
-    pub fn parse_term(tokens: &mut PeekableTokens) -> ParserResult<Expression> {
+    pub fn parse_term<I>(tokens: &mut TokenStream<I>) -> ParserResult<Expression>
+    where
+        I: TokenIterator,
+    {
         let mut expr = Self::parse_factor(tokens)?;
 
         loop {
-            let operation = tokens.peek().and_then(|t| match t.kind {
+            let Some(operation) = tokens.peek().and_then(|t| match t.kind {
                 TokenKind::Asterix => Some(BinaryOperationKind::Mult),
                 TokenKind::Slash => Some(BinaryOperationKind::Div),
                 _ => None,
-            });
-            let Some(operation) = operation else { break };
+            }) else { break };
 
             // Consume peeked token
-            tokens.next();
+            tokens.next()?;
 
             expr = Expression::BinaryOperation {
                 operation,
@@ -119,35 +126,32 @@ impl Expression {
     /// ```txt
     /// F -> P ["^" F]
     /// ```
-    pub fn parse_factor(tokens: &mut PeekableTokens) -> ParserResult<Expression> {
+    pub fn parse_factor<I>(tokens: &mut TokenStream<I>) -> ParserResult<Expression>
+    where
+        I: TokenIterator,
+    {
         let p = Self::parse_primary(tokens)?;
 
-        Ok(
-            if tokens
-                .peek()
-                .map(|t| matches!(t.kind, TokenKind::Hat))
-                .unwrap_or_default()
-            {
-                // Consume hat
-                tokens.next();
-
-                Expression::BinaryOperation {
-                    operation: BinaryOperationKind::Exp,
-                    lhs: Box::new(p),
-                    rhs: Box::new(Self::parse_factor(tokens)?),
-                }
-            } else {
-                p
-            },
-        )
+        Ok(if tokens.expect(TokenKind::Hat).is_ok() {
+            Expression::BinaryOperation {
+                operation: BinaryOperationKind::Exp,
+                lhs: Box::new(p),
+                rhs: Box::new(Self::parse_factor(tokens)?),
+            }
+        } else {
+            p
+        })
     }
 
     /// Parse the `P` term from the grammar
     /// ```txt
     /// P -> v | "(" E ")" | "-" T
     /// ```
-    pub fn parse_primary(tokens: &mut PeekableTokens) -> ParserResult<Expression> {
-        let token = tokens.next().ok_or(ParserError::ExpectedTokenToFollow)?;
+    pub fn parse_primary<I>(tokens: &mut TokenStream<I>) -> ParserResult<Expression>
+    where
+        I: TokenIterator,
+    {
+        let token = tokens.next()?;
         match token.kind {
             TokenKind::Literal {
                 kind: LiteralKind::Integer,
@@ -167,15 +171,9 @@ impl Expression {
             TokenKind::LSmooth => {
                 let expression = Self::parse_expression(tokens)?;
 
-                let token = tokens.next().ok_or(ParserError::ExpectedTokenToFollow)?;
-                if token.kind == TokenKind::RSmooth {
-                    Ok(expression)
-                } else {
-                    Err(ParserError::ExpectedToken {
-                        token: TokenKind::RSmooth,
-                        position: token.position,
-                    })
-                }
+                tokens.expect(TokenKind::RSmooth)?;
+
+                Ok(expression)
             }
             TokenKind::Minus => Ok(Expression::UnaryOperation {
                 operation: UnaryOperationKind::Negative,
@@ -189,7 +187,10 @@ impl Expression {
     }
 
     /// Parses tokens into an expression (identical to [Self::parse_expression] call).
-    pub fn parse(tokens: &mut PeekableTokens) -> ParserResult<Expression> {
+    pub fn parse<I>(tokens: &mut TokenStream<I>) -> ParserResult<Expression>
+    where
+        I: TokenIterator,
+    {
         Self::parse_expression(tokens)
     }
 }
@@ -202,8 +203,8 @@ mod tests {
     #[test]
     fn number_expressions() {
         assert_eq!(
-            Expression::parse(
-                &mut vec![Token {
+            Expression::parse(&mut TokenStream::from(
+                [Token {
                     kind: TokenKind::Literal {
                         kind: crate::token::LiteralKind::Integer,
                         chars: vec!['9', '0'],
@@ -211,15 +212,14 @@ mod tests {
                     position: Position::new(),
                 }]
                 .into_iter()
-                .peekable(),
-            )
+            ))
             .unwrap(),
             Expression::Number(90)
         );
 
         assert_eq!(
-            Expression::parse(
-                &mut vec![Token {
+            Expression::parse(&mut TokenStream::from(
+                [Token {
                     kind: TokenKind::Literal {
                         kind: crate::token::LiteralKind::Integer,
                         chars: vec!['0', '0', '0', '0', '9', '0'],
@@ -227,8 +227,7 @@ mod tests {
                     position: Position::new(),
                 }]
                 .into_iter()
-                .peekable(),
-            )
+            ))
             .unwrap(),
             Expression::Number(90)
         );
@@ -237,8 +236,8 @@ mod tests {
     #[test]
     fn unary_operation() {
         assert_eq!(
-            Expression::parse(
-                &mut vec![
+            Expression::parse(&mut TokenStream::from(
+                [
                     Token {
                         kind: TokenKind::Minus,
                         position: Position::new(),
@@ -252,8 +251,7 @@ mod tests {
                     }
                 ]
                 .into_iter()
-                .peekable(),
-            )
+            ))
             .unwrap(),
             Expression::UnaryOperation {
                 operation: UnaryOperationKind::Negative,
@@ -262,8 +260,8 @@ mod tests {
         );
 
         assert_eq!(
-            Expression::parse(
-                &mut vec![
+            Expression::parse(&mut TokenStream::from(
+                [
                     Token {
                         kind: TokenKind::Minus,
                         position: Position::new(),
@@ -281,8 +279,7 @@ mod tests {
                     }
                 ]
                 .into_iter()
-                .peekable(),
-            )
+            ))
             .unwrap(),
             Expression::UnaryOperation {
                 operation: UnaryOperationKind::Negative,

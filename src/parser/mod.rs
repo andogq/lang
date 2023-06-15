@@ -1,5 +1,7 @@
-use crate::token::{Keyword, Token, TokenKind};
-use std::{iter::Peekable, vec::IntoIter};
+use crate::{
+    token::{Keyword, TokenKind},
+    token_stream::{TokenIterator, TokenStream},
+};
 
 use self::{
     _let::Let,
@@ -8,22 +10,23 @@ use self::{
 };
 
 mod _let;
-mod error;
+pub mod error;
 mod expression;
 
-type PeekableTokens = Peekable<IntoIter<Token>>;
-
+#[allow(unused)]
 #[derive(Debug)]
 pub enum AstNode {
     Let(Let),
     Expression(Expression),
 }
 
-pub fn parse(tokens: Vec<Token>) -> ParserResult<Vec<AstNode>> {
-    let mut tokens = tokens.into_iter().peekable();
+pub fn parse<I>(mut tokens: TokenStream<I>) -> ParserResult<Vec<AstNode>>
+where
+    I: TokenIterator,
+{
     let mut nodes = Vec::new();
 
-    while let Some(token) = tokens.next() {
+    while let Ok(token) = tokens.next() {
         match token.kind {
             TokenKind::Keyword(Keyword::Let) => nodes.push(AstNode::Let(Let::parse(&mut tokens)?)),
             TokenKind::Comment(_) => (),
